@@ -4,8 +4,8 @@ import whisper
 import argparse
 import warnings
 import tempfile
-from .utils import filename, str2bool, write_srt
-import json
+from typing import Iterator, TextIO, List
+from .utils import filename, str2bool, format_timestamp
 
 
 def main():
@@ -46,6 +46,17 @@ def main():
     elif language != "auto":
         args["language"] = language
         
+        args = parser.parse_args().__dict__
+    model_name: str = args.pop("model")
+    output_dir: str = args.pop("output_dir")
+    output_srt: bool = args.pop("output_srt")
+    srt_only: bool = args.pop("srt_only")
+    language: str = args.pop("language")
+    
+    os.makedirs(output_dir, exist_ok=True)
+
+    # ... (rest of the model loading and language detection code remains the same)
+
     model = whisper.load_model(model_name)
     audios = get_audio(args.pop("video"))
     subtitles = get_subtitles(
@@ -109,7 +120,7 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
 
     return subtitles_path
 
-def write_styled_srt(words: list, file: TextIO):
+def write_styled_srt(words: List[dict], file: TextIO):
     for i, word in enumerate(words, start=1):
         start_time = format_timestamp(word['start'], always_include_hours=True)
         end_time = format_timestamp(word['end'], always_include_hours=True)
