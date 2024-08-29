@@ -57,7 +57,7 @@ def main():
 
     # ... (rest of the model loading and language detection code remains the same)
 
-      model = whisper.load_model(model_name)
+    model = whisper.load_model(model_name)
     audios = get_audio(args.pop("video"))
     subtitles = get_subtitles(
         audios, output_srt or srt_only, output_dir, lambda audio_path: model.transcribe(audio_path, **args)
