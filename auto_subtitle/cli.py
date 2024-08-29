@@ -5,6 +5,7 @@ import argparse
 import warnings
 import tempfile
 from .utils import filename, str2bool, write_srt
+import json
 
 
 def main():
