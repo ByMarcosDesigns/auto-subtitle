@@ -107,12 +107,23 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
         subtitle_data = []
         for segment in result["segments"]:
             words = segment.get("words", [{"word": segment["text"], "start": segment["start"], "end": segment["end"]}])
-            for word in words:
-                subtitle_data.append({
-                    "text": word["word"].strip().upper(),
-                    "start": word["start"],
-                    "end": word["end"]
-                })
+            
+            # Group words into pairs
+            for i in range(0, len(words), 2):
+                if i + 1 < len(words):
+                    # Two words
+                    subtitle_data.append({
+                        "text": f"{words[i]['word'].strip()} {words[i+1]['word'].strip()}".upper(),
+                        "start": words[i]['start'],
+                        "end": words[i+1]['end']
+                    })
+                else:
+                    # One word (last word if odd number of words)
+                    subtitle_data.append({
+                        "text": words[i]['word'].strip().upper(),
+                        "start": words[i]['start'],
+                        "end": words[i]['end']
+                    })
 
         with open(srt_path, "w", encoding="utf-8") as srt:
             write_styled_srt(subtitle_data, file=srt)
@@ -134,6 +145,7 @@ def write_styled_srt(subtitle_data: List[dict], file: TextIO):
             file=file,
             flush=True,
         )
+
 
 def get_audio(paths):
     temp_dir = tempfile.gettempdir()
