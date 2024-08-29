@@ -36,7 +36,7 @@ def main():
     language: str = args.pop("language")
     
     os.makedirs(output_dir, exist_ok=True)
-
+    
     if model_name.endswith(".en"):
         warnings.warn(
             f"{model_name} is an English-only model, forcing English detection.")
@@ -62,11 +62,66 @@ def main():
         video = ffmpeg.input(path)
         audio = video.audio
 
+        # Modified subtitle filter with new styling
+        subtitle_filter = (
+            f"subtitles={srt_path}:force_style='"
+            f"Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,"
+            f"OutlineColour=&H000000&,BorderStyle=3,Outline=1,Shadow=0,"
+            f"MarginV=20,Alignment=2'"
+        )
+
         ffmpeg.concat(
-            video.filter('subtitles', srt_path, force_style="OutlineColour=&H40000000,BorderStyle=3"), audio, v=1, a=1
+            video.filter('subtitles', srt_path, 
+                         force_style="Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,OutlineColour=&H000000&,BorderStyle=3,Outline=1,Shadow=0,MarginV=20,Alignment=2"),
+            audio, v=1, a=1
         ).output(out_path).run(quiet=True, overwrite_output=True)
 
         print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
+
+def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcribe: callable):
+    subtitles_path = {}
+
+    for path, audio_path in audio_paths.items():
+        srt_path = output_dir if output_srt else tempfile.gettempdir()
+        srt_path = os.path.join(srt_path, f"{filename(path)}.srt")
+        
+        print(f"Generating subtitles for {filename(path)}... This might take a while.")
+
+        warnings.filterwarnings("ignore")
+        result = transcribe(audio_path)
+        warnings.filterwarnings("default")
+
+        # Improved synchronization and word-level timing
+        words = []
+        for segment in result["segments"]:
+            for word in segment["words"]:
+                words.append({
+                    "word": word["word"],
+                    "start": word["start"],
+                    "end": word["end"]
+                })
+
+        with open(srt_path, "w", encoding="utf-8") as srt:
+            write_styled_srt(words, file=srt)
+
+        subtitles_path[path] = srt_path
+
+    return subtitles_path
+
+def write_styled_srt(words: list, file: TextIO):
+    for i, word in enumerate(words, start=1):
+        start_time = format_timestamp(word['start'], always_include_hours=True)
+        end_time = format_timestamp(word['end'], always_include_hours=True)
+        styled_word = f"{{\\fs40\\c&HFFFF00&}}{word['word']}{{\\fs24\\c&HFFFFFF&}}"
+        
+        print(
+            f"{i}\n"
+            f"{start_time} --> {end_time}\n"
+            f"{styled_word}\n",
+            file=file,
+            flush=True,
+        )
+
 
 
 def get_audio(paths):
@@ -86,30 +141,6 @@ def get_audio(paths):
         audio_paths[path] = output_path
 
     return audio_paths
-
-
-def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcribe: callable):
-    subtitles_path = {}
-
-    for path, audio_path in audio_paths.items():
-        srt_path = output_dir if output_srt else tempfile.gettempdir()
-        srt_path = os.path.join(srt_path, f"{filename(path)}.srt")
-        
-        print(
-            f"Generating subtitles for {filename(path)}... This might take a while."
-        )
-
-        warnings.filterwarnings("ignore")
-        result = transcribe(audio_path)
-        warnings.filterwarnings("default")
-
-        with open(srt_path, "w", encoding="utf-8") as srt:
-            write_srt(result["segments"], file=srt)
-
-        subtitles_path[path] = srt_path
-
-    return subtitles_path
-
 
 if __name__ == '__main__':
     main()
