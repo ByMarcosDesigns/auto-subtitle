@@ -103,37 +103,45 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
         result = transcribe(audio_path)
         warnings.filterwarnings("default")
 
-        # Improved synchronization and word-level timing
-        words = []
+        # Fallback to segment-level timing if word-level is not available
+        subtitle_data = []
         for segment in result["segments"]:
-            for word in segment["words"]:
-                words.append({
-                    "word": word["word"],
-                    "start": word["start"],
-                    "end": word["end"]
+            if "words" in segment:
+                # Word-level timing available
+                for word in segment["words"]:
+                    subtitle_data.append({
+                        "text": word["word"],
+                        "start": word["start"],
+                        "end": word["end"]
+                    })
+            else:
+                # Fallback to segment-level timing
+                subtitle_data.append({
+                    "text": segment["text"],
+                    "start": segment["start"],
+                    "end": segment["end"]
                 })
 
         with open(srt_path, "w", encoding="utf-8") as srt:
-            write_styled_srt(words, file=srt)
+            write_styled_srt(subtitle_data, file=srt)
 
         subtitles_path[path] = srt_path
 
     return subtitles_path
 
-def write_styled_srt(words: List[dict], file: TextIO):
-    for i, word in enumerate(words, start=1):
-        start_time = format_timestamp(word['start'], always_include_hours=True)
-        end_time = format_timestamp(word['end'], always_include_hours=True)
-        styled_word = f"{{\\fs40\\c&HFFFF00&}}{word['word']}{{\\fs24\\c&HFFFFFF&}}"
+def write_styled_srt(subtitle_data: List[dict], file: TextIO):
+    for i, item in enumerate(subtitle_data, start=1):
+        start_time = format_timestamp(item['start'], always_include_hours=True)
+        end_time = format_timestamp(item['end'], always_include_hours=True)
+        styled_text = f"{{\\fs40\\c&HFFFF00&}}{item['text']}{{\\fs24\\c&HFFFFFF&}}"
         
         print(
             f"{i}\n"
             f"{start_time} --> {end_time}\n"
-            f"{styled_word}\n",
+            f"{styled_text}\n",
             file=file,
             flush=True,
         )
-
 
 
 def get_audio(paths):
