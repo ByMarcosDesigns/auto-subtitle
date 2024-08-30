@@ -43,7 +43,7 @@ def main():
     model = whisper.load_model(model_name)
     audios = get_audio(args.pop("video"))
     subtitles = get_subtitles(
-        audios, output_dir, lambda audio_path: model.transcribe(audio_path, verbose=True, word_timestamps=True)
+        audios, output_dir, lambda audio_path: model.transcribe(audio_path, word_timestamps=True)
     )
 
     for path, subtitle_data in subtitles.items():
@@ -65,19 +65,27 @@ def get_subtitles(audio_paths: dict, output_dir: str, transcribe: callable):
 
         warnings.filterwarnings("ignore")
         result = transcribe(audio_path)
+        print(result)
         warnings.filterwarnings("default")
 
         subtitle_data = []
         for segment in result["segments"]:
-            subtitle_data.append({
-                "text": segment["text"],
-                "start": segment["start"],
-                "end": segment["end"]
-            })
+            words = segment["words"]
+            for i in range(len(words)):
+                # Aquí se obtiene una sola palabra
+                word = words[i]["word"]
+                # Se añade la entrada al subtitle_data con la palabra, inicio y fin
+                subtitle_data.append({
+                    "text": word,
+                    "start": words[i]["start"],
+                    "end": words[i]["end"]
+                })
+
 
         subtitles[path] = subtitle_data
 
     return subtitles
+
 
 def get_audio(paths):
     temp_dir = tempfile.gettempdir()
@@ -97,18 +105,26 @@ def get_audio(paths):
     return audio_paths
 
 def create_subtitle_image(text, width, height):
-    wrapped_text = textwrap.fill(text, width=30)
+    text = text.upper()
+    wrapped_text = textwrap.fill(text, width=40)  # Ajusta el ancho del texto
     command = [
         "magick",
         "-size", f"{width}x{height}",
         "xc:none",
         "-gravity", "center",
+        "-font", "Arial-Black",  # Cambia a una fuente más bonita y bold
+        "-pointsize", "86",
+        "-kerning", "-1",
+        "-interword-spacing", "10",
         "-fill", "white",
-        "-stroke", "black",
-        "-strokewidth", "2",
-        "-pointsize", "24",
-        "-annotate", "0", wrapped_text,
-        "PNG:-",
+        # "-stroke", "#000C",
+        # "-strokewidth", "4",  # Aumenta el grosor del contorno
+        "-annotate", "0x0+0+5", wrapped_text,
+        "-fill", "none",
+        "-stroke", "#323232",
+        "-strokewidth", "6", #Grosor adicional para el efecto de contorno
+        "-annotate", "0x0+0+5", wrapped_text,
+        "PNG:-"
     ]
     try:
         result = run(command, stdout=PIPE, stderr=PIPE, check=True)
@@ -116,7 +132,7 @@ def create_subtitle_image(text, width, height):
     except CalledProcessError as e:
         print(f"Error creating subtitle image: {e.stderr.decode()}")
         raise
-
+    
 def add_subtitles_to_video(video_path, subtitle_data, output_path):
     probe = ffmpeg.probe(video_path)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
