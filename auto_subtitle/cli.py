@@ -67,13 +67,17 @@ def main():
     if srt_only:
         return
 
-    for path, _ in subtitles.items():
-        out_path = os.path.join(output_dir, f"{filename(path)}.mp4")
+    for path, srt_path in subtitles.items():
+        out_path = output_dir / f"{filename(path)}.mp4"
 
         print(f"Adding subtitles to {filename(path)}...")
 
         video = ffmpeg.input(path)
         audio = video.audio
+
+        if not srt_path.exists():
+            print(f"Warning: Subtitle file {srt_path} does not exist. Skipping subtitle addition.")
+            continue
 
         # Updated subtitle filter with new styling
         subtitle_filter = (
@@ -85,23 +89,23 @@ def main():
 
         try:
             ffmpeg.concat(
-                video.filter('subtitles', srt_path, 
+                video.filter('subtitles', str(srt_path), 
                              force_style="Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=0,MarginV=20,Alignment=2,Bold=1"),
                 audio, v=1, a=1
-            ).output(out_path).run(capture_stdout=True, capture_stderr=True)
+            ).output(str(out_path)).run(capture_stdout=True, capture_stderr=True)
         except ffmpeg.Error as e:
             print('stdout:', e.stdout.decode('utf8'))
             print('stderr:', e.stderr.decode('utf8'))
             raise
+            
+        print(f"Saved subtitled video to {out_path.absolute()}.")
 
-        print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
-
-def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcribe: callable):
+def get_subtitles(audio_paths: dict, output_srt: bool, output_dir: Path, transcribe: callable):
     subtitles_path = {}
 
     for path, audio_path in audio_paths.items():
-        srt_path = output_dir if output_srt else tempfile.gettempdir()
-        srt_path = os.path.join(srt_path, f"{filename(path)}.srt")
+        srt_path = output_dir if output_srt else Path(tempfile.gettempdir())
+        srt_path = srt_path / f"{filename(path)}.srt"
         
         print(f"Generating subtitles for {filename(path)}... This might take a while.")
 
@@ -137,6 +141,7 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
         subtitles_path[path] = srt_path
 
     return subtitles_path
+
 
 def write_styled_srt(subtitle_data: List[dict], file: TextIO):
     for i, item in enumerate(subtitle_data, start=1):
