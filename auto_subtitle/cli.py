@@ -7,8 +7,6 @@ import tempfile
 from typing import Iterator, TextIO, List
 from .utils import filename, str2bool, format_timestamp
 
-srt_path = 'D:\Programacion\Github\AutoVideo\subtitled_video\output_video.srt'
-
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
