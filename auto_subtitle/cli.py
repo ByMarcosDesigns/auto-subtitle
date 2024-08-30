@@ -43,7 +43,7 @@ def main():
     model = whisper.load_model(model_name)
     audios = get_audio(args.pop("video"))
     subtitles = get_subtitles(
-        audios, output_dir, lambda audio_path: model.transcribe(audio_path, **args)
+        audios, output_dir, lambda audio_path: model.transcribe(audio_path, word_timestamps=True)
     )
 
     for path, subtitle_data in subtitles.items():
