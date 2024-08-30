@@ -6,6 +6,7 @@ import warnings
 import tempfile
 from typing import Iterator, TextIO, List
 from .utils import filename, str2bool, format_timestamp
+from ffmpeg._utils import escape_chars
 
 
 def main():
@@ -82,8 +83,9 @@ def main():
             f"MarginV=20,Alignment=2,Bold=1'"
         )
 
+        srt_path_escaped = escape_chars(srt_path, '\\:')
         ffmpeg.concat(
-            video.filter('subtitles', srt_path, 
+            video.filter('subtitles', srt_path_escaped, 
                          force_style="Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=0,MarginV=20,Alignment=2,Bold=1"),
             audio, v=1, a=1
         ).output(out_path).run(quiet=True, overwrite_output=True)
