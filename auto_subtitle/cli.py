@@ -67,7 +67,7 @@ def main():
     if srt_only:
         return
 
-    for path, srt_path in subtitles.items():
+    for path, _ in subtitles.items():
         out_path = os.path.join(output_dir, f"{filename(path)}.mp4")
 
         print(f"Adding subtitles to {filename(path)}...")
