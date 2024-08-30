@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 import ffmpeg
 import whisper
 import argparse
@@ -58,38 +57,15 @@ def main():
 
     # ... (rest of the model loading and language detection code remains the same)
 
-    model = whisper.load_model(model_name)
-    audios = get_audio(args.pop("video"))
-    subtitles = get_subtitles(
-        audios, output_srt or srt_only, output_dir, lambda audio_path: model.transcribe(audio_path, **args)
-    )
+    args = parser.parse_args().__dict__
+    model_name: str = args.pop("model")
+    output_dir: str = args.pop("output_dir")
+    output_srt: bool = args.pop("output_srt")
+    srt_only: bool = args.pop("srt_only")
+    language: str = args.pop("language")
+    
+    os.makedirs(output_dir, exist_ok=True)
 
-    if srt_only:
-        return
-
-    for path, srt_path in subtitles.items():
-        out_path = os.path.join(output_dir, f"{filename(path)}.mp4")
-
-        print(f"Adding subtitles to {filename(path)}...")
-
-        video = ffmpeg.input(path)
-        audio = video.audio
-
-        # Updated subtitle filter with new styling
-        subtitle_filter = (
-            f"subtitles={srt_path}:force_style='"
-            f"Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,"
-            f"OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=0,"
-            f"MarginV=20,Alignment=2,Bold=1'"
-        )
-
-        ffmpeg.concat(
-            video.filter('subtitles', srt_path, 
-                         force_style="Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=0,MarginV=20,Alignment=2,Bold=1"),
-            audio, v=1, a=1
-        ).output(out_path).run(quiet=True, overwrite_output=True)
-
-        print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
 
 def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcribe: callable):
     subtitles_path = {}
@@ -104,15 +80,23 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
         result = transcribe(audio_path)
         warnings.filterwarnings("default")
 
-        # Process transcription result to get word-level timing
+        # Fallback to segment-level timing if word-level is not available
         subtitle_data = []
         for segment in result["segments"]:
-            words = segment.get("words", [{"word": segment["text"], "start": segment["start"], "end": segment["end"]}])
-            for word in words:
+            if "words" in segment:
+                # Word-level timing available
+                for word in segment["words"]:
+                    subtitle_data.append({
+                        "text": word["word"],
+                        "start": word["start"],
+                        "end": word["end"]
+                    })
+            else:
+                # Fallback to segment-level timing
                 subtitle_data.append({
-                    "text": word["word"].strip().upper(),
-                    "start": word["start"],
-                    "end": word["end"]
+                    "text": segment["text"],
+                    "start": segment["start"],
+                    "end": segment["end"]
                 })
 
         with open(srt_path, "w", encoding="utf-8") as srt:
@@ -126,7 +110,7 @@ def write_styled_srt(subtitle_data: List[dict], file: TextIO):
     for i, item in enumerate(subtitle_data, start=1):
         start_time = format_timestamp(item['start'], always_include_hours=True)
         end_time = format_timestamp(item['end'], always_include_hours=True)
-        styled_text = f"{item['text']}"
+        styled_text = f"{{\\fs40\\c&HFFFF00&}}{item['text']}{{\\fs24\\c&HFFFFFF&}}"
         
         print(
             f"{i}\n"
@@ -135,7 +119,7 @@ def write_styled_srt(subtitle_data: List[dict], file: TextIO):
             file=file,
             flush=True,
         )
-
+        
 def get_audio(paths):
     temp_dir = tempfile.gettempdir()
 
