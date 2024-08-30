@@ -99,7 +99,7 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
         print(f"Generating subtitles for {filename(path)}... This might take a while.")
 
         warnings.filterwarnings("ignore")
-        result = transcribe(audio_path, word_timestamps=True)
+        result = transcribe(audio_path)
         warnings.filterwarnings("default")
 
         # Process transcription result to get word-level timing
