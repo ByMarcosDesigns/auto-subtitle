@@ -45,8 +45,8 @@ def main():
     # if translate task used and language argument is set, then use it
     elif language != "auto":
         args["language"] = language
-        
         args = parser.parse_args().__dict__
+        
     model_name: str = args.pop("model")
     output_dir: str = args.pop("output_dir")
     output_srt: bool = args.pop("output_srt")
@@ -57,14 +57,38 @@ def main():
 
     # ... (rest of the model loading and language detection code remains the same)
 
-    args = parser.parse_args().__dict__
-    model_name: str = args.pop("model")
-    output_dir: str = args.pop("output_dir")
-    output_srt: bool = args.pop("output_srt")
-    srt_only: bool = args.pop("srt_only")
-    language: str = args.pop("language")
-    
-    os.makedirs(output_dir, exist_ok=True)
+    model = whisper.load_model(model_name)
+    audios = get_audio(args.pop("video"))
+    subtitles = get_subtitles(
+        audios, output_srt or srt_only, output_dir, lambda audio_path: model.transcribe(audio_path, **args)
+    )
+
+    if srt_only:
+        return
+
+    for path, srt_path in subtitles.items():
+        out_path = os.path.join(output_dir, f"{filename(path)}.mp4")
+
+        print(f"Adding subtitles to {filename(path)}...")
+
+        video = ffmpeg.input(path)
+        audio = video.audio
+
+        # Updated subtitle filter with new styling
+        subtitle_filter = (
+            f"subtitles={srt_path}:force_style='"
+            f"Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,"
+            f"OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=0,"
+            f"MarginV=20,Alignment=2,Bold=1'"
+        )
+
+        ffmpeg.concat(
+            video.filter('subtitles', srt_path, 
+                         force_style="Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=0,MarginV=20,Alignment=2,Bold=1"),
+            audio, v=1, a=1
+        ).output(out_path).run(quiet=True, overwrite_output=True)
+
+        print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
 
 
 def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcribe: callable):
