@@ -82,11 +82,16 @@ def main():
             f"MarginV=20,Alignment=2,Bold=1'"
         )
 
-        ffmpeg.concat(
-            video.filter('subtitles', srt_path, 
-                         force_style="Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=0,MarginV=20,Alignment=2,Bold=1"),
-            audio, v=1, a=1
-        ).output(out_path).run(quiet=True, overwrite_output=True)
+        try:
+            ffmpeg.concat(
+                video.filter('subtitles', srt_path, 
+                             force_style="Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFF&,OutlineColour=&H000000&,BorderStyle=3,Outline=2,Shadow=0,MarginV=20,Alignment=2,Bold=1"),
+                audio, v=1, a=1
+            ).output(out_path).run(capture_stdout=True, capture_stderr=True)
+        except ffmpeg.Error as e:
+            print('stdout:', e.stdout.decode('utf8'))
+            print('stderr:', e.stderr.decode('utf8'))
+            raise
 
         print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
 
