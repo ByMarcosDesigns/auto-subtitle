@@ -7,6 +7,7 @@ import tempfile
 from typing import Iterator, TextIO, List
 from .utils import filename, str2bool, format_timestamp
 
+srt_path = ''
 
 def main():
     parser = argparse.ArgumentParser(
