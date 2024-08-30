@@ -6,8 +6,9 @@ import warnings
 import tempfile
 from typing import Iterator, TextIO, List
 from .utils import filename, str2bool, format_timestamp
-from subprocess import run, PIPE
+from subprocess import run, PIPE, CalledProcessError
 import textwrap
+import uuid
 
 def main():
     parser = argparse.ArgumentParser(
@@ -50,9 +51,11 @@ def main():
 
         print(f"Adding subtitles to {filename(path)}...")
 
-        add_subtitles_to_video(path, subtitle_data, out_path)
-
-        print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
+        try:
+            add_subtitles_to_video(path, subtitle_data, out_path)
+            print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
+        except Exception as e:
+            print(f"Error adding subtitles to {filename(path)}: {str(e)}")
 
 def get_subtitles(audio_paths: dict, output_dir: str, transcribe: callable):
     subtitles = {}
@@ -96,7 +99,7 @@ def get_audio(paths):
 def create_subtitle_image(text, width, height):
     wrapped_text = textwrap.fill(text, width=30)
     command = [
-        "convert",
+        "magick",
         "-size", f"{width}x{height}",
         "xc:none",
         "-gravity", "center",
@@ -105,10 +108,14 @@ def create_subtitle_image(text, width, height):
         "-strokewidth", "2",
         "-pointsize", "24",
         "-annotate", "0", wrapped_text,
-        "-",
+        "PNG:-",
     ]
-    result = run(command, stdout=PIPE, input=b"")
-    return result.stdout
+    try:
+        result = run(command, stdout=PIPE, stderr=PIPE, check=True)
+        return result.stdout
+    except CalledProcessError as e:
+        print(f"Error creating subtitle image: {e.stderr.decode()}")
+        raise
 
 def add_subtitles_to_video(video_path, subtitle_data, output_path):
     probe = ffmpeg.probe(video_path)
@@ -119,27 +126,38 @@ def add_subtitles_to_video(video_path, subtitle_data, output_path):
     input_video = ffmpeg.input(video_path)
     
     subtitle_filter = ""
-    for i, subtitle in enumerate(subtitle_data):
-        start_time = subtitle['start']
-        end_time = subtitle['end']
-        duration = end_time - start_time
-        
-        subtitle_image = create_subtitle_image(subtitle['text'], width, height)
-        temp_image_path = f"temp_subtitle_{i}.png"
-        with open(temp_image_path, "wb") as f:
-            f.write(subtitle_image)
-        
-        subtitle_filter += f"[0:v][s{i}]overlay=0:main_h-overlay_h:enable='between(t,{start_time},{end_time})'[v{i}];"
-        input_video = ffmpeg.input(temp_image_path)
-        subtitle_filter = f"[v{i}][{i+1}:v]" + subtitle_filter
+    temp_image_paths = []
 
-    subtitle_filter = subtitle_filter.rstrip(";")
-    output = ffmpeg.output(input_video, input_video.audio, output_path, vf=subtitle_filter)
-    ffmpeg.run(output, overwrite_output=True)
+    try:
+        for i, subtitle in enumerate(subtitle_data):
+            start_time = subtitle['start']
+            end_time = subtitle['end']
+            
+            subtitle_image = create_subtitle_image(subtitle['text'], width, height)
+            temp_image_path = os.path.join(tempfile.gettempdir(), f"temp_subtitle_{uuid.uuid4()}.png")
+            with open(temp_image_path, "wb") as f:
+                f.write(subtitle_image)
+            temp_image_paths.append(temp_image_path)
+            
+            subtitle_filter += f"[0:v][{i+1}:v]overlay=0:main_h-overlay_h:enable='between(t,{start_time},{end_time})'[v{i}];"
+            if i == 0:
+                subtitle_filter = f"[0:v][1:v]" + subtitle_filter
+            else:
+                subtitle_filter = f"[v{i-1}][{i+1}:v]" + subtitle_filter
 
-    # Clean up temporary image files
-    for i in range(len(subtitle_data)):
-        os.remove(f"temp_subtitle_{i}.png")
+        subtitle_filter = subtitle_filter.rstrip(";")
+        
+        inputs = [input_video] + [ffmpeg.input(path) for path in temp_image_paths]
+        output = ffmpeg.output(*inputs, output_path, vf=subtitle_filter)
+        ffmpeg.run(output, overwrite_output=True)
+
+    finally:
+        # Clean up temporary image files
+        for path in temp_image_paths:
+            try:
+                os.remove(path)
+            except OSError as e:
+                print(f"Error removing temporary file {path}: {e}")
 
 if __name__ == '__main__':
     main()
