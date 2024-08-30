@@ -125,10 +125,10 @@ def add_subtitles_to_video(video_path, subtitle_data, output_path):
 
     input_video = ffmpeg.input(video_path)
     
-    subtitle_filter = ""
     temp_image_paths = []
 
     try:
+        overlay = input_video
         for i, subtitle in enumerate(subtitle_data):
             start_time = subtitle['start']
             end_time = subtitle['end']
@@ -139,18 +139,21 @@ def add_subtitles_to_video(video_path, subtitle_data, output_path):
                 f.write(subtitle_image)
             temp_image_paths.append(temp_image_path)
             
-            subtitle_filter += f"[0:v][{i+1}:v]overlay=0:main_h-overlay_h:enable='between(t,{start_time},{end_time})'[v{i}];"
-            if i == 0:
-                subtitle_filter = f"[0:v][1:v]" + subtitle_filter
-            else:
-                subtitle_filter = f"[v{i-1}][{i+1}:v]" + subtitle_filter
+            subtitle_input = ffmpeg.input(temp_image_path)
+            overlay = ffmpeg.filter(
+                [overlay, subtitle_input],
+                'overlay',
+                x='0',
+                y='main_h-overlay_h',
+                enable=f'between(t,{start_time},{end_time})'
+            )
 
-        subtitle_filter = subtitle_filter.rstrip(";")
-        
-        inputs = [input_video] + [ffmpeg.input(path) for path in temp_image_paths]
-        output = ffmpeg.output(*inputs, output_path, vf=subtitle_filter)
+        output = ffmpeg.output(overlay, input_video.audio, output_path)
         ffmpeg.run(output, overwrite_output=True)
 
+    except ffmpeg.Error as e:
+        print(f"FFmpeg error: {e.stderr.decode()}")
+        raise
     finally:
         # Clean up temporary image files
         for path in temp_image_paths:
