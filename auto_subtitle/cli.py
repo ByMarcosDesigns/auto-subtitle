@@ -1,6 +1,6 @@
 import os
 import ffmpeg
-import stable_whisper as whisper
+import whisper
 import argparse
 import warnings
 import tempfile
@@ -13,7 +13,8 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("video", nargs="+", type=str,
                         help="paths to video files to transcribe")
-    parser.add_argument("--model", default="small", help="name of the Whisper model to use")
+    parser.add_argument("--model", default="small",
+                        choices=whisper.available_models(), help="name of the Whisper model to use")
     parser.add_argument("--output_dir", "-o", type=str,
                         default=".", help="directory to save the outputs")
     parser.add_argument("--output_srt", type=str2bool, default=False,
