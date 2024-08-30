@@ -5,6 +5,7 @@ import argparse
 import warnings
 import tempfile
 from typing import Iterator, TextIO, List
+from pathlib import Path
 from .utils import filename, str2bool, format_timestamp
 
 def main():
